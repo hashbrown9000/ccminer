@@ -691,3 +691,149 @@ __host__ void x13_fugue512_cpu_hash_64(int thr_id, uint32_t threads, uint32_t st
 	x13_fugue512_gpu_hash_64<<<grid, block, shared_size>>>(threads, startNounce, (uint64_t*)d_hash, d_nonceVector);
 	MyStreamSynchronize(NULL, order, thr_id);
 }
+
+
+
+//========== Drop algo =================
+
+template<int SH_ROUND> __global__
+void x13_fugue512_gpu_hash_64_drop(uint32_t threads, uint32_t startNounce, uint64_t *g_hash, uint64_t *d_roundInfo, int subRound)
+{
+	extern __shared__ char mixtabs[];
+
+	*((uint32_t*)mixtabs + (threadIdx.x)) = tex1Dfetch(mixTab0Tex, threadIdx.x);
+	*((uint32_t*)mixtabs + (256 + threadIdx.x)) = tex1Dfetch(mixTab1Tex, threadIdx.x);
+	*((uint32_t*)mixtabs + (512 + threadIdx.x)) = tex1Dfetch(mixTab2Tex, threadIdx.x);
+	*((uint32_t*)mixtabs + (768 + threadIdx.x)) = tex1Dfetch(mixTab3Tex, threadIdx.x);
+
+	__syncthreads();
+
+	int i;
+	uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+	if (thread < threads)
+	{
+		uint8_t rnd = (d_roundInfo[thread] >> SH_ROUND) & 0xFF;
+		if (rnd < 31 && d_perm[rnd][subRound] == 7)
+		{
+			uint32_t *Hash = (uint32_t*)&g_hash[thread << 3];
+			drop_shiftr(Hash, (rnd & 3));
+
+#pragma unroll 16
+			for (i = 0; i < 16; i++)
+				Hash[i] = cuda_swab32(Hash[i]);
+
+			uint32_t S00, S01, S02, S03, S04, S05, S06, S07, S08, S09;
+			uint32_t S10, S11, S12, S13, S14, S15, S16, S17, S18, S19;
+			uint32_t S20, S21, S22, S23, S24, S25, S26, S27, S28, S29;
+			uint32_t S30, S31, S32, S33, S34, S35;
+
+			uint32_t B27, B28, B29, B30, B31, B32, B33, B34, B35;
+			uint64_t bc = (uint64_t)64 << 3;
+			uint32_t bclo = (uint32_t)(bc & 0xFFFFFFFFULL);
+			uint32_t bchi = (uint32_t)(bc >> 32);
+
+			S00 = S01 = S02 = S03 = S04 = S05 = S06 = S07 = S08 = S09 = S10 = S11 = S12 = S13 = S14 = S15 = S16 = S17 = S18 = S19 = 0;
+			S20 = SPH_C32(0x8807a57e); S21 = SPH_C32(0xe616af75); S22 = SPH_C32(0xc5d3e4db); S23 = SPH_C32(0xac9ab027);
+			S24 = SPH_C32(0xd915f117); S25 = SPH_C32(0xb6eecc54); S26 = SPH_C32(0x06e8020b); S27 = SPH_C32(0x4a92efd1);
+			S28 = SPH_C32(0xaac6e2c9); S29 = SPH_C32(0xddb21398); S30 = SPH_C32(0xcae65838); S31 = SPH_C32(0x437f203f);
+			S32 = SPH_C32(0x25ea78e7); S33 = SPH_C32(0x951fddd6); S34 = SPH_C32(0xda6ed11d); S35 = SPH_C32(0xe13e3567);
+
+			FUGUE512_3((Hash[0x0]), (Hash[0x1]), (Hash[0x2]));
+			FUGUE512_3((Hash[0x3]), (Hash[0x4]), (Hash[0x5]));
+			FUGUE512_3((Hash[0x6]), (Hash[0x7]), (Hash[0x8]));
+			FUGUE512_3((Hash[0x9]), (Hash[0xA]), (Hash[0xB]));
+			FUGUE512_3((Hash[0xC]), (Hash[0xD]), (Hash[0xE]));
+			FUGUE512_3((Hash[0xF]), bchi, bclo);
+
+#pragma unroll 32
+			for (i = 0; i < 32; i++) {
+				ROR3;
+				CMIX36(S00, S01, S02, S04, S05, S06, S18, S19, S20);
+				SMIX(S00, S01, S02, S03);
+			}
+#pragma unroll 13
+			for (i = 0; i < 13; i++) {
+				S04 ^= S00;
+				S09 ^= S00;
+				S18 ^= S00;
+				S27 ^= S00;
+				ROR9;
+				SMIX(S00, S01, S02, S03);
+				S04 ^= S00;
+				S10 ^= S00;
+				S18 ^= S00;
+				S27 ^= S00;
+				ROR9;
+				SMIX(S00, S01, S02, S03);
+				S04 ^= S00;
+				S10 ^= S00;
+				S19 ^= S00;
+				S27 ^= S00;
+				ROR9;
+				SMIX(S00, S01, S02, S03);
+				S04 ^= S00;
+				S10 ^= S00;
+				S19 ^= S00;
+				S28 ^= S00;
+				ROR8;
+				SMIX(S00, S01, S02, S03);
+			}
+			S04 ^= S00;
+			S09 ^= S00;
+			S18 ^= S00;
+			S27 ^= S00;
+
+			Hash[0] = cuda_swab32(S01);
+			Hash[1] = cuda_swab32(S02);
+			Hash[2] = cuda_swab32(S03);
+			Hash[3] = cuda_swab32(S04);
+			Hash[4] = cuda_swab32(S09);
+			Hash[5] = cuda_swab32(S10);
+			Hash[6] = cuda_swab32(S11);
+			Hash[7] = cuda_swab32(S12);
+			Hash[8] = cuda_swab32(S18);
+			Hash[9] = cuda_swab32(S19);
+			Hash[10] = cuda_swab32(S20);
+			Hash[11] = cuda_swab32(S21);
+			Hash[12] = cuda_swab32(S27);
+			Hash[13] = cuda_swab32(S28);
+			Hash[14] = cuda_swab32(S29);
+			Hash[15] = cuda_swab32(S30);
+
+		}
+	}
+}
+
+
+__host__ void x13_fugue512_cpu_hash_64_drop(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, int order, uint64_t *d_roundInfo, int round, int subRound)
+{
+	const uint32_t threadsperblock = 256;
+
+	// berechne wie viele Thread Blocks wir brauchen
+	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
+	dim3 block(threadsperblock);
+
+	// Größe des dynamischen Shared Memory Bereichs
+	size_t shared_size = 4 * 256 * sizeof(uint32_t);
+
+	switch (round)
+	{
+	case 0:
+		x13_fugue512_gpu_hash_64_drop<32> << <grid, block, shared_size >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	case 1:
+		x13_fugue512_gpu_hash_64_drop<24> << <grid, block, shared_size >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	case 2:
+		x13_fugue512_gpu_hash_64_drop<16> << <grid, block, shared_size >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	case 3:
+		x13_fugue512_gpu_hash_64_drop<8> << <grid, block, shared_size >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	case 4:
+		x13_fugue512_gpu_hash_64_drop<0> << <grid, block, shared_size >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	default:
+		break;
+	}
+}

@@ -1,10 +1,13 @@
 
-ccMiner release 1.6.4-tpruvot (May 2015) - "Multi-pools config"
+ccMiner release 1.6.4 (June 2015) - "DropLP"
 ---------------------------------------------------------------
 
 ***************************************************************
 If you find this tool useful and like to support its continuous
           development, then consider a donation.
+
+nscrypto:
+  DROP  : DVRLyv6nWZiWdGGEqrPVmRR4An1e8acM6b
 
 tpruvot@github:
   BTC  : 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo
@@ -30,6 +33,7 @@ GroestlCoin & Myriad-Groestl
 JackpotCoin
 QuarkCoin family & AnimeCoin
 TalkCoin
+Dropcoin (DropLP)
 DarkCoin and other X11 coins
 Saffroncoin blake (256 14-rounds)
 BlakeCoin (256 8-rounds)
@@ -67,6 +71,7 @@ its command line interface and options.
                           blakecoin   use to mine Old Blake 256
                           deep        use to mine Deepcoin
                           dmd-gr      use to mine Diamond-Groestl
+                          drop        use to mine Dropcoin
                           fresh       use to mine Freshcoin
                           fugue256    use to mine Fuguecoin
                           groestl     use to mine Groestlcoin

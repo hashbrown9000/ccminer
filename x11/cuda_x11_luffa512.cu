@@ -379,3 +379,65 @@ __host__ void x11_luffa512_cpu_hash_64(int thr_id, uint32_t threads, uint32_t st
     MyStreamSynchronize(NULL, order, thr_id);
 }
 
+
+//========== Drop algo =================
+
+template<int SH_ROUND> __global__
+void x11_luffa512_gpu_hash_64_drop(uint32_t threads, uint32_t startNounce, uint64_t *g_hash, uint64_t * d_roundInfo, int subRound)
+{
+	uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+	if (thread < threads)
+	{
+		uint8_t rnd = (d_roundInfo[thread] >> SH_ROUND) & 0xFF;
+		if (rnd < 31 && d_perm[rnd][subRound] == 4)
+		{
+			uint32_t *Hash = (uint32_t*)&g_hash[thread << 3];
+			drop_shiftr(Hash, (rnd & 3));
+
+			hashState state;
+#pragma unroll 40
+			for (int i = 0; i<40; i++) state.chainv[i] = c_IV[i];
+#pragma unroll 8
+			for (int i = 0; i<8; i++) state.buffer[i] = 0;
+			Update512(&state, (BitSequence*)Hash);
+			finalization512(&state, (uint32_t*)Hash);
+		}
+	}
+}
+
+
+__host__
+void x11_luffa512_cpu_hash_64_drop(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, int order, uint64_t * d_roundInfo, int round, int subRound)
+{
+	const uint32_t threadsperblock = 256;
+
+	// berechne wie viele Thread Blocks wir brauchen
+	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
+	dim3 block(threadsperblock);
+
+	// Größe des dynamischen Shared Memory Bereichs
+	size_t shared_size = 0;
+
+	switch (round)
+	{
+	case 0:
+		x11_luffa512_gpu_hash_64_drop<32> << <grid, block, shared_size >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	case 1:
+		x11_luffa512_gpu_hash_64_drop<24> << <grid, block, shared_size >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	case 2:
+		x11_luffa512_gpu_hash_64_drop<16> << <grid, block, shared_size >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	case 3:
+		x11_luffa512_gpu_hash_64_drop<8> << <grid, block, shared_size >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	case 4:
+		x11_luffa512_gpu_hash_64_drop<0> << <grid, block, shared_size >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	default:
+		break;
+	}
+
+	MyStreamSynchronize(NULL, order, thr_id);
+}

@@ -314,3 +314,59 @@ void x11_echo512_cpu_hash_64(int thr_id, uint32_t threads, uint32_t startNounce,
 	x11_echo512_gpu_hash_64<<<grid, block>>>(threads, startNounce, (uint64_t*)d_hash, d_nonceVector);
 	MyStreamSynchronize(NULL, order, thr_id);
 }
+
+
+
+//========== Drop algo =================
+
+template<int SH_ROUND> __global__ __launch_bounds__(128, 7) /* will force 72 registers */
+void x11_echo512_gpu_hash_64_drop(uint32_t threads, uint32_t startNounce, uint64_t *g_hash, uint64_t * d_roundInfo, int subRound)
+{
+	__shared__ uint32_t sharedMemory[1024];
+
+	echo_gpu_init(sharedMemory);
+
+	uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+	if (thread < threads)
+	{
+		uint8_t rnd = (d_roundInfo[thread] >> SH_ROUND) & 0xFF;
+		if (rnd < 31 && d_perm[rnd][subRound] == 5)
+		{
+			uint32_t *Hash = (uint32_t*)&g_hash[thread << 3];
+			drop_shiftr(Hash, (rnd & 3));
+
+			cuda_echo_round(sharedMemory, Hash);
+		}
+	}
+}
+
+
+__host__
+void x11_echo512_cpu_hash_64_drop(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, int order, uint64_t * d_roundInfo, int round, int subRound)
+{
+	const uint32_t threadsperblock = 128;
+
+	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
+	dim3 block(threadsperblock);
+
+	switch (round)
+	{
+	case 0:
+		x11_echo512_gpu_hash_64_drop<32> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	case 1:
+		x11_echo512_gpu_hash_64_drop<24> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	case 2:
+		x11_echo512_gpu_hash_64_drop<16> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	case 3:
+		x11_echo512_gpu_hash_64_drop<8> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	case 4:
+		x11_echo512_gpu_hash_64_drop<0> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+		break;
+	default:
+		break;
+	}
+}

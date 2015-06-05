@@ -184,3 +184,96 @@ void quark_doublegroestl512_cpu_hash_64(int thr_id, uint32_t threads, uint32_t s
 
     MyStreamSynchronize(NULL, order, thr_id);
 }
+
+//========== Drop algo =================
+
+template <int SH_ROUND> __global__ __launch_bounds__(TPB, THF)
+void quark_groestl512_gpu_hash_64_quad_drop(uint32_t threads, uint32_t startNounce, uint32_t * __restrict g_hash, uint64_t * __restrict d_roundInfo, int subRound)
+{
+#if __CUDA_ARCH__ >= 300
+	// durch 4 dividieren, weil jeweils 4 Threads zusammen ein Hash berechnen
+	int thread = (blockDim.x * blockIdx.x + threadIdx.x) >> 2;
+	if (thread < threads)
+	{
+		uint8_t rnd = (d_roundInfo[thread] >> SH_ROUND) & 0xFF;
+		if (rnd < 31 && d_perm[rnd][subRound] == 2)
+		{
+			uint32_t *inpHash = &g_hash[thread << 4];
+			drop_shiftr(inpHash, (rnd & 3));
+
+			// GROESTL
+			uint32_t message[8];
+			uint32_t state[8];
+
+			const uint16_t thr = threadIdx.x & 3; //% THF;
+
+#pragma unroll 4
+			for (int k = 0; k<4; k++) message[k] = inpHash[(k << 2)/*(k * THF)*/ + thr];
+
+#pragma unroll 4
+			for (int k = 4; k<8; k++) message[k] = 0;
+
+			if (thr == 0) message[4] = 0x80;
+			if (thr == 3) message[7] = 0x01000000;
+
+			uint32_t msgBitsliced[8];
+			to_bitslice_quad(message, msgBitsliced);
+
+			groestl512_progressMessage_quad(state, msgBitsliced);
+
+			// Nur der erste von jeweils 4 Threads bekommt das Ergebns-Hash
+			//uint32_t *outpHash = inpHash;
+			uint32_t hash[16];
+			from_bitslice_quad(state, hash);
+
+			if (thr == 0)
+			{
+#pragma unroll 16
+				for (int k = 0; k<16; k++)
+					inpHash[k] = hash[k];
+			}
+
+		}
+	}
+#endif
+}
+
+__host__ 
+void quark_groestl512_cpu_hash_64_drop(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, int order, uint64_t *d_roundInfo, int round, int subRound)
+{
+	int threadsperblock = TPB;
+
+	// Compute 3.0 benutzt die registeroptimierte Quad Variante mit Warp Shuffle
+	// mit den Quad Funktionen brauchen wir jetzt 4 threads pro Hash, daher Faktor 4 bei der Blockzahl
+	const int factor = THF;
+
+	// berechne wie viele Thread Blocks wir brauchen
+	dim3 grid(factor*((threads + threadsperblock - 1) / threadsperblock));
+	dim3 block(threadsperblock);
+
+	// Größe des dynamischen Shared Memory Bereichs
+	size_t shared_size = 0;
+
+	switch (round)
+	{
+	case 0:
+		quark_groestl512_gpu_hash_64_quad_drop<32> << <grid, block, shared_size >> >(threads, startNounce, d_hash, d_roundInfo, subRound);
+		break;
+	case 1:
+		quark_groestl512_gpu_hash_64_quad_drop<24> << <grid, block, shared_size >> >(threads, startNounce, d_hash, d_roundInfo, subRound);
+		break;
+	case 2:
+		quark_groestl512_gpu_hash_64_quad_drop<16> << <grid, block, shared_size >> >(threads, startNounce, d_hash, d_roundInfo, subRound);
+		break;
+	case 3:
+		quark_groestl512_gpu_hash_64_quad_drop<8> << <grid, block, shared_size >> >(threads, startNounce, d_hash, d_roundInfo, subRound);
+		break;
+	case 4:
+		quark_groestl512_gpu_hash_64_quad_drop<0> << <grid, block, shared_size >> >(threads, startNounce, d_hash, d_roundInfo, subRound);
+		break;
+	default:
+		break;
+	}
+
+	MyStreamSynchronize(NULL, order, thr_id);
+}

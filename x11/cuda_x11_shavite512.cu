@@ -1473,3 +1473,90 @@ void x11_shavite512_setBlock_80(void *pdata)
 
 	cudaMemcpyToSymbol(c_PaddedMessage80, PaddedMessage, 32*sizeof(uint32_t), 0, cudaMemcpyHostToDevice);
 }
+
+
+//========== Drop algo =================
+
+template<int SH_ROUND> __global__ __launch_bounds__(TPB, 7) /* 64 registers with 128,8 - 72 regs with 128,7 */
+void x11_shavite512_gpu_hash_64_drop(uint32_t threads, uint32_t startNounce, uint64_t *g_hash, uint64_t * d_roundInfo, int round, int subRound)
+{
+	__shared__ uint32_t sharedMemory[1024];
+
+	shavite_gpu_init(sharedMemory);
+
+	uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+	if (thread < threads)
+	{
+		uint8_t rnd = (d_roundInfo[thread] >> SH_ROUND) & 0xFF;
+		if (rnd < 31 && d_perm[rnd][subRound] == 6)
+		{
+
+			uint32_t *Hash = (uint32_t*)&g_hash[thread << 3];
+			drop_shiftr(Hash, (rnd & 3));
+
+			// kopiere init-state
+			uint32_t state[16] = {
+				SPH_C32(0x72FCCDD8), SPH_C32(0x79CA4727), SPH_C32(0x128A077B), SPH_C32(0x40D55AEC),
+				SPH_C32(0xD1901A06), SPH_C32(0x430AE307), SPH_C32(0xB29F5CD1), SPH_C32(0xDF07FBFC),
+				SPH_C32(0x8E45D73D), SPH_C32(0x681AB538), SPH_C32(0xBDE86578), SPH_C32(0xDD577E47),
+				SPH_C32(0xE275EADE), SPH_C32(0x502D9FCD), SPH_C32(0xB9357178), SPH_C32(0x022A4B9A)
+			};
+
+			// nachricht laden
+			uint32_t msg[32];
+
+			// fülle die Nachricht mit 64-byte (vorheriger Hash)
+#pragma unroll 16
+			for (int i = 0; i<16; i++)
+				msg[i] = Hash[i];
+
+			// Nachrichtenende
+			msg[16] = 0x80;
+#pragma unroll 10
+			for (int i = 17; i<27; i++)
+				msg[i] = 0;
+
+			msg[27] = 0x02000000;
+			msg[28] = 0;
+			msg[29] = 0;
+			msg[30] = 0;
+			msg[31] = 0x02000000;
+
+			c512(sharedMemory, state, msg, 512);
+
+#pragma unroll 16
+			for (int i = 0; i<16; i++)
+				Hash[i] = state[i];
+		}
+	}
+}
+
+__host__
+void x11_shavite512_cpu_hash_64_drop(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, int order, uint64_t * d_roundInfo, int round, int subRound)
+{
+	const uint32_t threadsperblock = TPB;
+
+	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
+	dim3 block(threadsperblock);
+
+	switch (round)
+	{
+	case 0:
+		x11_shavite512_gpu_hash_64_drop<32> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, round, subRound);
+		break;
+	case 1:
+		x11_shavite512_gpu_hash_64_drop<24> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, round, subRound);
+		break;
+	case 2:
+		x11_shavite512_gpu_hash_64_drop<16> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, round, subRound);
+		break;
+	case 3:
+		x11_shavite512_gpu_hash_64_drop<8> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, round, subRound);
+		break;
+	case 4:
+		x11_shavite512_gpu_hash_64_drop<0> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, round, subRound);
+		break;
+	default:
+		break;
+	}
+}
