@@ -238,7 +238,7 @@ void quark_groestl512_gpu_hash_64_quad_drop(uint32_t threads, uint32_t startNoun
 #endif
 }
 
-__host__ 
+__host__
 void quark_groestl512_cpu_hash_64_drop(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, int order, uint64_t *d_roundInfo, int round, int subRound)
 {
 	int threadsperblock = TPB;

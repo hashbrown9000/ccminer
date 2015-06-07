@@ -1009,7 +1009,7 @@ void quark_skein512_gpu_hash_64_drop(int threads, uint32_t startNounce, uint64_t
 			h6 = vectorize(0x991112C71A75B523ull);
 			h7 = vectorize(0xAE18A40B660FCC33ull);
 
-			// 1. Runde -> etype = 480, ptr = 64, bcount = 0, data = msg		
+			// 1. Runde -> etype = 480, ptr = 64, bcount = 0, data = msg
 #pragma unroll 8
 			for (int i = 0; i < 8; i++)
 				p[i] = vectorize(inpHash[i]);
@@ -1108,7 +1108,7 @@ void quark_skein512_gpu_hash_64_v30_drop(uint32_t threads, uint32_t startNounce,
 			h6 = 0x991112C71A75B523ull;
 			h7 = 0xAE18A40B660FCC33ull;
 
-			// 1. Runde -> etype = 480, ptr = 64, bcount = 0, data = msg		
+			// 1. Runde -> etype = 480, ptr = 64, bcount = 0, data = msg
 #pragma unroll 8
 			for (int i = 0; i < 8; i++)
 				p[i] = inpHash[i];

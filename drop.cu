@@ -298,7 +298,7 @@ extern "C" int scanhash_drop(int thr_id, uint32_t *pdata, const uint32_t *ptarge
 		//cudaDeviceSynchronize();
 
 		for (int i = 0; i < 5; i++) {
-			for (int j = 0; j < 10; j++) {				
+			for (int j = 0; j < 10; j++) {
 				quark_keccak512_cpu_hash_64_drop(thr_id, throughput, pdata[19], d_hash[thr_id], order++, d_roundInfo[thr_id], i, j);
 				quark_blake512_cpu_hash_64_drop(thr_id, throughput, pdata[19], d_hash[thr_id], order++, d_roundInfo[thr_id], i, j);
 				quark_groestl512_cpu_hash_64_drop(thr_id, throughput, pdata[19], d_hash[thr_id], order++, d_roundInfo[thr_id], i, j);
@@ -331,7 +331,7 @@ extern "C" int scanhash_drop(int thr_id, uint32_t *pdata, const uint32_t *ptarge
 				x13_fugue512_cpu_hash_64_drop(thr_id, throughput, pdata[19], d_hash[thr_id], order++, d_roundInfo[thr_id], i, j);
 				drop_simd512_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id], order++, d_roundInfo[thr_id], i, j);
 				x11_cubehash512_cpu_hash_64_drop(thr_id, throughput, pdata[19], d_hash[thr_id], order++,d_roundInfo[thr_id], i, j);
-				//cudaDeviceSynchronize(); 
+				//cudaDeviceSynchronize();
 			}
 		}
 
