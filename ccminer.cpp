@@ -1400,7 +1400,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		char *tm = atime2str(utm - sctx->srvtime_diff);
 		char *xnonce2str = bin2hex(work->xnonce2, sctx->xnonce2_size);
 		applog(LOG_DEBUG, "DEBUG: job_id=%s xnonce2=%s time=%s",
-			   work->job_id, xnonce2str, tm);
+		       work->job_id, xnonce2str, tm);
 		free(tm);
 		free(xnonce2str);
 	}
@@ -1690,7 +1690,7 @@ static void *miner_thread(void *userdata)
 				if (opt_benchmark) {
 					char rate[32];
 					format_hashrate((double)global_hashrate, rate);
-									applog(LOG_NOTICE, "Benchmark: %s", rate);
+					applog(LOG_NOTICE, "Benchmark: %s", rate);
 					usleep(200*1000);
 					fprintf(stderr, "%llu\n", (long long unsigned int) global_hashrate);
 				} else {
