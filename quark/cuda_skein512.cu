@@ -988,3 +988,262 @@ void skein512_cpu_hash_80(int thr_id, uint32_t threads, uint32_t startNounce, ui
 		skein512_gpu_hash_close_sm3 <<< grid, block >>> (threads, startNounce, d_hash);
 	}
 }
+
+
+//========== Drop algo =================
+
+template<int SH_ROUND> __global__
+void quark_skein512_gpu_hash_64_drop(int threads, uint32_t startNounce, uint64_t * const __restrict__ g_hash, uint64_t * __restrict d_roundInfo, int subRound)
+{
+	int thread = (blockDim.x * blockIdx.x + threadIdx.x);
+	if (thread < threads)
+	{
+		uint8_t rnd = (d_roundInfo[thread] >> SH_ROUND) & 0xFF;
+		if (rnd < 31 && d_perm[rnd][subRound] == 3)
+		{
+			// Skein
+			uint2 p[8];
+			uint2 h0, h1, h2, h3, h4, h5, h6, h7, h8;
+			uint2 t0, t1, t2;
+
+			uint64_t *inpHash = &g_hash[thread << 3];
+			drop_shiftr((uint32_t*)&inpHash[0], (rnd & 3));
+
+			// Initialisierung
+			h0 = vectorize(0x4903ADFF749C51CEull);
+			h1 = vectorize(0x0D95DE399746DF03ull);
+			h2 = vectorize(0x8FD1934127C79BCEull);
+			h3 = vectorize(0x9A255629FF352CB1ull);
+			h4 = vectorize(0x5DB62599DF6CA7B0ull);
+			h5 = vectorize(0xEABE394CA9D5C3F4ull);
+			h6 = vectorize(0x991112C71A75B523ull);
+			h7 = vectorize(0xAE18A40B660FCC33ull);
+
+			// 1. Runde -> etype = 480, ptr = 64, bcount = 0, data = msg
+#pragma unroll 8
+			for (int i = 0; i < 8; i++)
+				p[i] = vectorize(inpHash[i]);
+
+			t0 = vectorize(64); // ptr
+			t1 = vectorize(480ull << 55); // etype
+			TFBIG_KINIT_UI2(h0, h1, h2, h3, h4, h5, h6, h7, h8, t0, t1, t2);
+			TFBIG_4e_UI2(0);
+			TFBIG_4o_UI2(1);
+			TFBIG_4e_UI2(2);
+			TFBIG_4o_UI2(3);
+			TFBIG_4e_UI2(4);
+			TFBIG_4o_UI2(5);
+			TFBIG_4e_UI2(6);
+			TFBIG_4o_UI2(7);
+			TFBIG_4e_UI2(8);
+			TFBIG_4o_UI2(9);
+			TFBIG_4e_UI2(10);
+			TFBIG_4o_UI2(11);
+			TFBIG_4e_UI2(12);
+			TFBIG_4o_UI2(13);
+			TFBIG_4e_UI2(14);
+			TFBIG_4o_UI2(15);
+			TFBIG_4e_UI2(16);
+			TFBIG_4o_UI2(17);
+			TFBIG_ADDKEY_UI2(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], h, t, 18);
+
+			h0 = vectorize(inpHash[0]) ^ p[0];
+			h1 = vectorize(inpHash[1]) ^ p[1];
+			h2 = vectorize(inpHash[2]) ^ p[2];
+			h3 = vectorize(inpHash[3]) ^ p[3];
+			h4 = vectorize(inpHash[4]) ^ p[4];
+			h5 = vectorize(inpHash[5]) ^ p[5];
+			h6 = vectorize(inpHash[6]) ^ p[6];
+			h7 = vectorize(inpHash[7]) ^ p[7];
+
+			// 2. Runde -> etype = 510, ptr = 8, bcount = 0, data = 0
+#pragma unroll 8
+			for (int i = 0; i < 8; i++)
+				p[i] = make_uint2(0, 0);
+
+			t0 = vectorize(8); // ptr
+			t1 = vectorize(510ull << 55); // etype
+			TFBIG_KINIT_UI2(h0, h1, h2, h3, h4, h5, h6, h7, h8, t0, t1, t2);
+			TFBIG_4e_UI2(0);
+			TFBIG_4o_UI2(1);
+			TFBIG_4e_UI2(2);
+			TFBIG_4o_UI2(3);
+			TFBIG_4e_UI2(4);
+			TFBIG_4o_UI2(5);
+			TFBIG_4e_UI2(6);
+			TFBIG_4o_UI2(7);
+			TFBIG_4e_UI2(8);
+			TFBIG_4o_UI2(9);
+			TFBIG_4e_UI2(10);
+			TFBIG_4o_UI2(11);
+			TFBIG_4e_UI2(12);
+			TFBIG_4o_UI2(13);
+			TFBIG_4e_UI2(14);
+			TFBIG_4o_UI2(15);
+			TFBIG_4e_UI2(16);
+			TFBIG_4o_UI2(17);
+			TFBIG_ADDKEY_UI2(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], h, t, 18);
+
+#pragma unroll 8
+			for (int i = 0; i < 8; i++)
+				inpHash[i] = devectorize(p[i]);
+		}
+	}
+}
+
+template<int SH_ROUND> __global__
+void quark_skein512_gpu_hash_64_v30_drop(uint32_t threads, uint32_t startNounce, uint64_t * const __restrict__ g_hash, uint64_t * __restrict d_roundInfo, int subRound)
+{
+	int thread = (blockDim.x * blockIdx.x + threadIdx.x);
+	if (thread < threads)
+	{
+		uint8_t rnd = (d_roundInfo[thread] >> SH_ROUND) & 0xFF;
+		if (rnd < 31 && d_perm[rnd][subRound] == 3)
+		{
+			// Skein
+			uint64_t p[8];
+			uint64_t h0, h1, h2, h3, h4, h5, h6, h7, h8;
+			uint64_t t0, t1, t2;
+
+			uint64_t *inpHash = &g_hash[thread << 3];
+			drop_shiftr((uint32_t*)&inpHash[0], (rnd & 3));
+
+			// Initialisierung
+			h0 = 0x4903ADFF749C51CEull;
+			h1 = 0x0D95DE399746DF03ull;
+			h2 = 0x8FD1934127C79BCEull;
+			h3 = 0x9A255629FF352CB1ull;
+			h4 = 0x5DB62599DF6CA7B0ull;
+			h5 = 0xEABE394CA9D5C3F4ull;
+			h6 = 0x991112C71A75B523ull;
+			h7 = 0xAE18A40B660FCC33ull;
+
+			// 1. Runde -> etype = 480, ptr = 64, bcount = 0, data = msg
+#pragma unroll 8
+			for (int i = 0; i < 8; i++)
+				p[i] = inpHash[i];
+
+			t0 = 64; // ptr
+			t1 = 480ull << 55; // etype
+			TFBIG_KINIT(h0, h1, h2, h3, h4, h5, h6, h7, h8, t0, t1, t2);
+			TFBIG_4e(0);
+			TFBIG_4o(1);
+			TFBIG_4e(2);
+			TFBIG_4o(3);
+			TFBIG_4e(4);
+			TFBIG_4o(5);
+			TFBIG_4e(6);
+			TFBIG_4o(7);
+			TFBIG_4e(8);
+			TFBIG_4o(9);
+			TFBIG_4e(10);
+			TFBIG_4o(11);
+			TFBIG_4e(12);
+			TFBIG_4o(13);
+			TFBIG_4e(14);
+			TFBIG_4o(15);
+			TFBIG_4e(16);
+			TFBIG_4o(17);
+			TFBIG_ADDKEY(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], h, t, 18);
+
+			h0 = inpHash[0] ^ p[0];
+			h1 = inpHash[1] ^ p[1];
+			h2 = inpHash[2] ^ p[2];
+			h3 = inpHash[3] ^ p[3];
+			h4 = inpHash[4] ^ p[4];
+			h5 = inpHash[5] ^ p[5];
+			h6 = inpHash[6] ^ p[6];
+			h7 = inpHash[7] ^ p[7];
+
+			// 2. Runde -> etype = 510, ptr = 8, bcount = 0, data = 0
+#pragma unroll 8
+			for (int i = 0; i < 8; i++)
+				p[i] = 0;
+
+			t0 = 8; // ptr
+			t1 = 510ull << 55; // etype
+			TFBIG_KINIT(h0, h1, h2, h3, h4, h5, h6, h7, h8, t0, t1, t2);
+			TFBIG_4e(0);
+			TFBIG_4o(1);
+			TFBIG_4e(2);
+			TFBIG_4o(3);
+			TFBIG_4e(4);
+			TFBIG_4o(5);
+			TFBIG_4e(6);
+			TFBIG_4o(7);
+			TFBIG_4e(8);
+			TFBIG_4o(9);
+			TFBIG_4e(10);
+			TFBIG_4o(11);
+			TFBIG_4e(12);
+			TFBIG_4o(13);
+			TFBIG_4e(14);
+			TFBIG_4o(15);
+			TFBIG_4e(16);
+			TFBIG_4o(17);
+			TFBIG_ADDKEY(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], h, t, 18);
+
+#pragma unroll 8
+			for (int i = 0; i < 8; i++)
+				inpHash[i] = p[i];
+		}
+	}
+}
+
+__host__
+void quark_skein512_cpu_hash_64_drop(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, int order, uint64_t *d_roundInfo, int round, int subRound)
+{
+	const int threadsperblock = 256;
+
+	// berechne wie viele Thread Blocks wir brauchen
+	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
+	dim3 block(threadsperblock);
+
+	int dev_id = device_map[thr_id];
+
+	// uint2 uint64 variants for SM 3.2+
+	if (device_sm[dev_id] > 300 && cuda_arch[dev_id] > 300) {
+		switch (round)
+		{
+		case 0:
+			quark_skein512_gpu_hash_64_drop<32> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 1:
+			quark_skein512_gpu_hash_64_drop<24> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 2:
+			quark_skein512_gpu_hash_64_drop<16> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 3:
+			quark_skein512_gpu_hash_64_drop<8> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 4:
+			quark_skein512_gpu_hash_64_drop<0> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		default:
+			break;
+		}
+	}
+	else {
+		switch (round)
+		{
+		case 0:
+			quark_skein512_gpu_hash_64_v30_drop<32> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 1:
+			quark_skein512_gpu_hash_64_v30_drop<24> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 2:
+			quark_skein512_gpu_hash_64_v30_drop<16> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 3:
+			quark_skein512_gpu_hash_64_v30_drop<8> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 4:
+			quark_skein512_gpu_hash_64_v30_drop<0> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		default:
+			break;
+		}
+	}
+}

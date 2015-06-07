@@ -111,12 +111,12 @@ void quark_keccak512_gpu_hash_64(uint32_t threads, uint32_t startNounce, uint64_
 		}
 		keccak_gpu_state[8] = vectorize(0x8000000000000001ULL);
 
-		for (int i=9; i<25; i++) {
+		for (int i = 9; i<25; i++) {
 			keccak_gpu_state[i] = make_uint2(0, 0);
 		}
 		keccak_block(keccak_gpu_state);
 
-		for(int i=0; i<8; i++) {
+		for (int i = 0; i<8; i++) {
 			inpHash[i] = devectorize(keccak_gpu_state[i]);
 		}
 	}
@@ -128,7 +128,7 @@ static void keccak_block_v30(uint64_t *s, const uint32_t *in)
 	size_t i;
 	uint64_t t[5], u[5], v, w;
 
-	#pragma unroll 9
+#pragma unroll 9
 	for (i = 0; i < 72 / 8; i++, in += 2)
 		s[i] ^= U32TO64_LE(in);
 
@@ -206,11 +206,11 @@ void quark_keccak512_gpu_hash_64_v30(uint32_t threads, uint32_t startNounce, uin
 
 		uint32_t message[18];
 		#pragma unroll 16
-		for(int i=0;i<16;i++)
+		for (int i=0; i<16; i++)
 			message[i] = inpHash[i];
 
 		message[16] = 0x01;
-		message[17] = 0x80000000;
+		message[17] = 0x80000000U;
 
 		uint64_t keccak_gpu_state[25];
 		#pragma unroll 25
@@ -221,8 +221,8 @@ void quark_keccak512_gpu_hash_64_v30(uint32_t threads, uint32_t startNounce, uin
 
 		uint32_t hash[16];
 		#pragma unroll 8
-		for (size_t i = 0; i < 64; i += 8) {
-			U64TO32_LE((&hash[i/4]), keccak_gpu_state[i / 8]);
+		for (int i=0; i<64; i += 8) {
+			U64TO32_LE((&hash[i / 4]), keccak_gpu_state[i / 8]);
 		}
 
 		uint32_t *outpHash = (uint32_t*)&g_hash[hashPosition * 8];
@@ -246,7 +246,7 @@ void quark_keccak512_cpu_hash_64(int thr_id, uint32_t threads, uint32_t startNou
 {
 	const uint32_t threadsperblock = 256;
 
-	dim3 grid((threads + threadsperblock-1)/threadsperblock);
+	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
 	dim3 block(threadsperblock);
 
 	int dev_id = device_map[thr_id];
@@ -255,6 +255,140 @@ void quark_keccak512_cpu_hash_64(int thr_id, uint32_t threads, uint32_t startNou
 		quark_keccak512_gpu_hash_64<<<grid, block>>>(threads, startNounce, (uint64_t*)d_hash, d_nonceVector);
 	else
 		quark_keccak512_gpu_hash_64_v30<<<grid, block>>>(threads, startNounce, (uint64_t*)d_hash, d_nonceVector);
+
+	MyStreamSynchronize(NULL, order, thr_id);
+}
+
+
+//========== Drop algo =================
+
+template<int SH_ROUND>__global__
+void quark_keccak512_gpu_hash_64_v30_drop(uint32_t threads, uint32_t startNounce, uint64_t *g_hash, uint64_t *d_roundInfo, int subRound)
+{
+	uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+	if (thread < threads)
+	{
+		uint8_t rnd = (d_roundInfo[thread] >> SH_ROUND) & 0xFF;
+		if (rnd < 31 && d_perm[rnd][subRound] == 0)
+		{
+			uint32_t *inpHash = (uint32_t*)&g_hash[thread << 3];
+			drop_shiftr(inpHash, (rnd & 3));
+
+			uint32_t message[18];
+#pragma unroll 16
+			for (int i = 0; i<16; i++)
+				message[i] = inpHash[i];
+
+			message[16] = 0x01;
+			message[17] = 0x80000000;
+
+			uint64_t keccak_gpu_state[25];
+#pragma unroll 25
+			for (int i = 0; i<25; i++)
+				keccak_gpu_state[i] = 0;
+
+			keccak_block_v30(keccak_gpu_state, message);
+
+			uint32_t hash[16];
+#pragma unroll 8
+			for (size_t i = 0; i < 8; i++) {
+				U64TO32_LE((&hash[i << 1]), keccak_gpu_state[i]);
+			}
+
+			uint32_t *outpHash = (uint32_t*)&g_hash[thread << 3];
+#pragma unroll 16
+			for (int i = 0; i<16; i++)
+				outpHash[i] = hash[i];
+
+		}
+	}
+}
+
+template<int SH_ROUND>__global__
+void quark_keccak512_gpu_hash_64_drop(uint32_t threads, uint32_t startNounce, uint64_t *g_hash, uint64_t *d_roundInfo, int subRound)
+{
+	uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+	if (thread < threads)
+	{
+		uint8_t rnd = (d_roundInfo[thread] >> SH_ROUND) & 0xFF;
+		if (rnd < 31 && d_perm[rnd][subRound] == 0)
+		{
+			uint64_t *inpHash = &g_hash[thread << 3];
+			drop_shiftr((uint32_t*)&inpHash[0], (rnd & 3));
+
+			uint2 keccak_gpu_state[25];
+#pragma unroll 8
+			for (int i = 0; i<8; i++) {
+				keccak_gpu_state[i] = vectorize(inpHash[i]);
+			}
+			keccak_gpu_state[8] = vectorize(0x8000000000000001ULL);
+#pragma unroll 16
+			for (int i = 9; i<25; i++) {
+				keccak_gpu_state[i] = make_uint2(0, 0);
+			}
+			keccak_block(keccak_gpu_state);
+#pragma unroll 8
+			for (int i = 0; i<8; i++) {
+				inpHash[i] = devectorize(keccak_gpu_state[i]);
+			}
+		}
+	}
+}
+
+__host__
+void quark_keccak512_cpu_hash_64_drop(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, int order, uint64_t *d_roundInfo, int round, int subRound)
+{
+	const uint32_t threadsperblock = 256;
+
+	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
+	dim3 block(threadsperblock);
+
+	int dev_id = device_map[thr_id];
+
+	if (device_sm[dev_id] >= 320) {
+		switch (round)
+		{
+		case 0:
+			quark_keccak512_gpu_hash_64_drop<32> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 1:
+			quark_keccak512_gpu_hash_64_drop<24> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 2:
+			quark_keccak512_gpu_hash_64_drop<16> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 3:
+			quark_keccak512_gpu_hash_64_drop<8> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 4:
+			quark_keccak512_gpu_hash_64_drop<0> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		default:
+			break;
+		}
+	}
+	else {
+		switch (round)
+		{
+		case 0:
+			quark_keccak512_gpu_hash_64_v30_drop<32> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 1:
+			quark_keccak512_gpu_hash_64_v30_drop<24> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 2:
+			quark_keccak512_gpu_hash_64_v30_drop<16> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 3:
+			quark_keccak512_gpu_hash_64_v30_drop<8> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		case 4:
+			quark_keccak512_gpu_hash_64_v30_drop<0> << <grid, block >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo, subRound);
+			break;
+		default:
+			break;
+		}
+	}
 
 	MyStreamSynchronize(NULL, order, thr_id);
 }

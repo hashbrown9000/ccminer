@@ -268,3 +268,104 @@ void quark_blake512_cpu_hash_80(int thr_id, uint32_t threads, uint32_t startNoun
 
 	quark_blake512_gpu_hash_80<<<grid, block>>>(threads, startNounce, d_outputHash);
 }
+
+//========== Drop algo =================
+
+template<int SH_ROUND>
+__global__ __launch_bounds__(256, 4)
+void quark_blake512_gpu_hash_64_drop(uint32_t threads, uint32_t startNounce, uint64_t *g_hash, uint64_t *d_roundInfo, int subRound)
+{
+	uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+
+#if USE_SHUFFLE
+	const int warpID = threadIdx.x & 0x0F; // 16 warps
+	const int warpBlockID = (thread + 15) >> 4; // aufrunden auf volle Warp-Blöcke
+	const int maxHashPosition = thread << 3;
+#endif
+
+#if USE_SHUFFLE
+	if (warpBlockID < ((threads + 15) >> 4))
+#else
+	if (thread < threads)
+#endif
+	{
+		uint8_t rnd = (d_roundInfo[thread] >> SH_ROUND) & 0xFF;
+		if (rnd < 31 && d_perm[rnd][subRound] == 1)
+		{
+			uint64_t *inpHash = &g_hash[thread << 3];
+			drop_shiftr((uint32_t*)&inpHash[0], (rnd & 3));
+
+			// 128 Bytes
+			uint64_t buf[16];
+
+			// State
+			uint64_t h[8] = {
+				0x6a09e667f3bcc908ULL,
+				0xbb67ae8584caa73bULL,
+				0x3c6ef372fe94f82bULL,
+				0xa54ff53a5f1d36f1ULL,
+				0x510e527fade682d1ULL,
+				0x9b05688c2b3e6c1fULL,
+				0x1f83d9abfb41bd6bULL,
+				0x5be0cd19137e2179ULL
+			};
+
+			// Message for first round
+#pragma unroll 8
+			for (int i = 0; i < 8; ++i)
+				buf[i] = inpHash[i];
+
+#pragma unroll 8
+			for (int i = 0; i < 8; i++)
+				buf[i + 8] = d_constHashPadding[i];
+
+			// Ending round
+			quark_blake512_compress(h, buf, c_sigma, c_u512, 512);
+
+#if __CUDA_ARCH__ <= 350
+			uint32_t *outHash = (uint32_t*)&g_hash[thread << 3];
+#pragma unroll 8
+			for (int i = 0; i < 8; i++) {
+				outHash[(i<<1) + 0] = cuda_swab32(_HIDWORD(h[i]));
+				outHash[(i<<1) + 1] = cuda_swab32(_LODWORD(h[i]));
+			}
+#else
+			uint64_t *outHash = &g_hash[thread << 3];
+#pragma unroll 8
+			for (int i = 0; i < 8; i++) {
+				outHash[i] = cuda_swab64(h[i]);
+			}
+#endif
+		}
+	}
+}
+
+__host__
+void quark_blake512_cpu_hash_64_drop(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_outputHash, int order, uint64_t *d_roundInfo, int round, int subRound)
+{
+	const uint32_t threadsperblock = 256;
+
+	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
+	dim3 block(threadsperblock);
+
+	switch (round)
+	{
+	case 0:
+		quark_blake512_gpu_hash_64_drop<32> << <grid, block >> >(threads, startNounce, (uint64_t*)d_outputHash, d_roundInfo, subRound);
+		break;
+	case 1:
+		quark_blake512_gpu_hash_64_drop<24> << <grid, block >> >(threads, startNounce, (uint64_t*)d_outputHash, d_roundInfo, subRound);
+		break;
+	case 2:
+		quark_blake512_gpu_hash_64_drop<16> << <grid, block >> >(threads, startNounce, (uint64_t*)d_outputHash, d_roundInfo, subRound);
+		break;
+	case 3:
+		quark_blake512_gpu_hash_64_drop<8> << <grid, block >> >(threads, startNounce, (uint64_t*)d_outputHash, d_roundInfo, subRound);
+		break;
+	case 4:
+		quark_blake512_gpu_hash_64_drop<0> << <grid, block >> >(threads, startNounce, (uint64_t*)d_outputHash, d_roundInfo, subRound);
+		break;
+	default:
+		break;
+	}
+}

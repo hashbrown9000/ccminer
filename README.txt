@@ -30,6 +30,7 @@ GroestlCoin & Myriad-Groestl
 JackpotCoin
 QuarkCoin family & AnimeCoin
 TalkCoin
+Dropcoin (DropLP)
 DarkCoin and other X11 coins
 Chaincoin and Flaxscript (C11)
 Saffroncoin blake (256 14-rounds)
@@ -70,6 +71,7 @@ its command line interface and options.
                           c11/flax    use to mine Chaincoin and Flax
                           deep        use to mine Deepcoin
                           dmd-gr      use to mine Diamond-Groestl
+                          drop        use to mine Dropcoin
                           fresh       use to mine Freshcoin
                           fugue256    use to mine Fuguecoin
                           groestl     use to mine Groestlcoin

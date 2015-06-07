@@ -39,6 +39,91 @@ extern void cudaReportHardwareFailure(int thr_id, cudaError_t error, const char*
 extern __device__ __device_builtin__ void __syncthreads(void);
 extern __device__ __device_builtin__ void __threadfence(void);
 
+// DropLP Table
+__device__ __constant__ uint32_t d_perm[31][10] = {
+	{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
+	{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 0 },
+	{ 2, 3, 4, 5, 6, 7, 8, 9, 0, 1 },
+	{ 3, 4, 5, 6, 7, 8, 9, 0, 1, 2 },
+	{ 4, 5, 6, 7, 8, 9, 0, 1, 2, 3 },
+	{ 5, 6, 7, 8, 9, 0, 1, 2, 3, 4 },
+	{ 6, 7, 8, 9, 0, 1, 2, 3, 4, 5 },
+	{ 7, 8, 9, 0, 1, 2, 3, 4, 5, 6 },
+	{ 8, 9, 0, 1, 2, 3, 4, 5, 6, 7 },
+	{ 9, 0, 1, 2, 3, 4, 5, 6, 7, 8 },
+	{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
+	{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 0 },
+	{ 2, 3, 4, 5, 6, 7, 8, 9, 0, 1 },
+	{ 3, 4, 5, 6, 7, 8, 9, 0, 1, 2 },
+	{ 4, 5, 6, 7, 8, 9, 0, 1, 2, 3 },
+	{ 5, 6, 7, 8, 9, 0, 1, 2, 3, 4 },
+	{ 6, 7, 8, 9, 0, 1, 2, 3, 4, 5 },
+	{ 7, 8, 9, 0, 1, 2, 3, 4, 5, 6 },
+	{ 8, 9, 0, 1, 2, 3, 4, 5, 6, 7 },
+	{ 9, 0, 1, 2, 3, 4, 5, 6, 7, 8 },
+	{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
+	{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 0 },
+	{ 2, 3, 4, 5, 6, 7, 8, 9, 0, 1 },
+	{ 3, 4, 5, 6, 7, 8, 9, 0, 1, 2 },
+	{ 4, 5, 6, 7, 8, 9, 0, 1, 2, 3 },
+	{ 5, 6, 7, 8, 9, 0, 1, 2, 3, 4 },
+	{ 6, 7, 8, 9, 0, 1, 2, 3, 4, 5 },
+	{ 7, 8, 9, 0, 1, 2, 3, 4, 5, 6 },
+	{ 8, 9, 0, 1, 2, 3, 4, 5, 6, 7 },
+	{ 9, 0, 1, 2, 3, 4, 5, 6, 7, 8 },
+	{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }
+};
+
+__device__ __forceinline__
+void drop_shiftr(uint32_t *phash, unsigned int shift)
+{
+	if (!shift) {
+		return;
+	}
+
+	uint32_t output[16];
+
+#pragma unroll 16
+	for (int i = 0; i < 16; i++)
+		output[i] = 0;
+
+	output[1] |= (phash[0] >> (32 - shift));
+	output[0] |= (phash[0] << shift);
+	output[2] |= (phash[1] >> (32 - shift));
+	output[1] |= (phash[1] << shift);
+	output[3] |= (phash[2] >> (32 - shift));
+	output[2] |= (phash[2] << shift);
+	output[4] |= (phash[3] >> (32 - shift));
+	output[3] |= (phash[3] << shift);
+	output[5] |= (phash[4] >> (32 - shift));
+	output[4] |= (phash[4] << shift);
+	output[6] |= (phash[5] >> (32 - shift));
+	output[5] |= (phash[5] << shift);
+	output[7] |= (phash[6] >> (32 - shift));
+	output[6] |= (phash[6] << shift);
+	output[8] |= (phash[7] >> (32 - shift));
+	output[7] |= (phash[7] << shift);
+	output[9] |= (phash[8] >> (32 - shift));
+	output[8] |= (phash[8] << shift);
+	output[10] |= (phash[9] >> (32 - shift));
+	output[9] |= (phash[9] << shift);
+	output[11] |= (phash[10] >> (32 - shift));
+	output[10] |= (phash[10] << shift);
+	output[12] |= (phash[11] >> (32 - shift));
+	output[11] |= (phash[11] << shift);
+	output[13] |= (phash[12] >> (32 - shift));
+	output[12] |= (phash[12] << shift);
+	output[14] |= (phash[13] >> (32 - shift));
+	output[13] |= (phash[13] << shift);
+	output[15] |= (phash[14] >> (32 - shift));
+	output[14] |= (phash[14] << shift);
+	output[15] |= (phash[15] << shift);
+
+#pragma unroll 16
+	for (int i = 0; i < 16; i++)
+		phash[i] = output[i];
+}
+
 #ifndef __CUDA_ARCH__
 // define blockDim and threadIdx for host
 extern const dim3 blockDim;
