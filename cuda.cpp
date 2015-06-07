@@ -214,6 +214,18 @@ void cuda_reset_device(int thr_id, bool *init)
 	cudaDeviceReset();
 }
 
+// allow to free ressources once on startup...
+static bool dev_init[MAX_GPUS] = { 0 };
+void cuda_init_device(int dev_id)
+{
+	if (!dev_init[dev_id]) {
+		cudaSetDevice(dev_id);
+		cudaDeviceReset();
+		dev_init[dev_id] = true;
+		//applog(LOG_DEBUG, "Init %d", dev_id);
+	}
+}
+
 void cudaReportHardwareFailure(int thr_id, cudaError_t err, const char* func)
 {
 	struct cgpu_info *gpu = &thr_info[thr_id].gpu;

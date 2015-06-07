@@ -58,6 +58,7 @@ BOOL WINAPI ConsoleHandler(DWORD);
 // from cuda.cpp
 int cuda_num_devices();
 void cuda_devicenames();
+void cuda_init_device(int dev_id);
 void cuda_reset_device(int thr_id, bool *init);
 void cuda_shutdown();
 int cuda_finddevice(char *name);
@@ -1759,6 +1760,7 @@ static void *miner_thread(void *userdata)
 			case ALGO_X13:
 				minmax = 0x400000;
 				break;
+			case ALGO_DROP:
 			case ALGO_LYRA2:
 			case ALGO_NEOSCRYPT:
 			case ALGO_SCRYPT:
@@ -3287,6 +3289,8 @@ int main(int argc, char *argv[])
 				gpu_reinit = true;
 			if (gpu_reinit)
 				cuda_reset_device(n, NULL);
+			else
+				cuda_init_device(device_map[n]);
 		}
 	}
 #endif

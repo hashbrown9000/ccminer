@@ -265,6 +265,7 @@ extern "C" int scanhash_drop(int thr_id, uint32_t *pdata, const uint32_t *ptarge
 		cudaMalloc(&d_poks[thr_id], throughput * sizeof(uint16_t));
 #endif
 		CUDA_SAFE_CALL(cudaGetLastError());
+
 		drop_jh512_cpu_init(thr_id, throughput);
 		quark_keccak512_cpu_init(thr_id, throughput);
 		quark_blake512_cpu_init(thr_id, throughput);
@@ -312,6 +313,7 @@ extern "C" int scanhash_drop(int thr_id, uint32_t *pdata, const uint32_t *ptarge
 				x11_cubehash512_cpu_hash_64_drop(thr_id, throughput, pdata[19], d_hash[thr_id], order++, d_roundInfo[thr_id], i, j);
 				//cudaDeviceSynchronize();
 			}
+			//applog(LOG_DEBUG, "%d", i); CUDA_SAFE_CALL(cudaGetLastError());
 		}
 #ifdef DROP_OFFF
 		drop_get_poks(thr_id, throughput, d_hash[thr_id], d_poks[thr_id]);
