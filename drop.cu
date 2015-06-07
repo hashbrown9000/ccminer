@@ -247,8 +247,8 @@ extern "C" int scanhash_drop(int thr_id, uint32_t *pdata, const uint32_t *ptarge
 #endif
 	const uint32_t first_nonce = pdata[19];
 
-	uint32_t throughpt = (int)device_intensity(thr_id, __func__, 640 * 2048);// 1U << 20);
-	const uint32_t throughput = min(throughpt, (int)(max_nonce - first_nonce));
+	uint32_t throughpt = device_intensity(thr_id, __func__, 1U << 19);
+	const uint32_t throughput = min(throughpt, max_nonce - first_nonce);
 
 	if (opt_benchmark)
 		((uint32_t*)ptarget)[7] = 0x0000ff;
@@ -259,10 +259,10 @@ extern "C" int scanhash_drop(int thr_id, uint32_t *pdata, const uint32_t *ptarge
 		cudaDeviceReset();
 		//cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
 
-		cudaMalloc(&d_hash[thr_id], 16 * sizeof(uint32_t) * throughput);
-		cudaMalloc(&d_roundInfo[thr_id], sizeof(uint64_t) * throughput);
+		cudaMalloc(&d_hash[thr_id], throughput * 16 * sizeof(uint32_t));
+		cudaMalloc(&d_roundInfo[thr_id], throughput * sizeof(uint64_t));
 #ifdef DROP_OFFF
-		cudaMalloc(&d_poks[thr_id], sizeof(uint16_t) * throughput);
+		cudaMalloc(&d_poks[thr_id], throughput * sizeof(uint16_t));
 #endif
 		drop_jh512_cpu_init(thr_id, throughput);
 		quark_keccak512_cpu_init(thr_id, throughput);
