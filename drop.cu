@@ -256,7 +256,7 @@ extern "C" int scanhash_drop(int thr_id, uint32_t *pdata, const uint32_t *ptarge
 	if (!init[thr_id])
 	{
 		cudaSetDevice(device_map[thr_id]);
-		cudaDeviceReset();
+		//cudaDeviceReset();
 		//cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
 
 		cudaMalloc(&d_hash[thr_id], throughput * 16 * sizeof(uint32_t));
@@ -264,6 +264,7 @@ extern "C" int scanhash_drop(int thr_id, uint32_t *pdata, const uint32_t *ptarge
 #ifdef DROP_OFFF
 		cudaMalloc(&d_poks[thr_id], throughput * sizeof(uint16_t));
 #endif
+		CUDA_SAFE_CALL(cudaGetLastError());
 		drop_jh512_cpu_init(thr_id, throughput);
 		quark_keccak512_cpu_init(thr_id, throughput);
 		quark_blake512_cpu_init(thr_id, throughput);
