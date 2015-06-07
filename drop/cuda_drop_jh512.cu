@@ -1,16 +1,16 @@
-#include <memory.h>
 #include <stdio.h>
+#include <memory.h>
 
 #include "cuda_helper.h"
 
 typedef struct {
-	uint32_t x[8][4];                     /*the 1024-bit state, ( x[i][0] || x[i][1] || x[i][2] || x[i][3] ) is the ith row of the state in the pseudocode*/
+	uint32_t x[8][4];    // the 1024-bit state, ( x[i][0] || x[i][1] || x[i][2] || x[i][3] ) is the ith row of the state in the pseudocode
 	uint32_t buffer[32];
 } hashState;
 
 __constant__ hashState c_State[1];
 
-/*42 round constants, each round constant is 32-byte (256-bit)*/
+// 42 round constants, each round constant is 32-byte (256-bit)
 __constant__ uint32_t c_INIT_bitslice[8][4];
 __constant__ unsigned char c_E8_bitslice_roundconstant[42][32];
 
@@ -89,14 +89,15 @@ const unsigned char h_E8_bitslice_roundconstant[42][32] = {
 	x += x; \
 	x |= y;
 
-/*swapping bits 16i||16i+1||......||16i+7  with bits 16i+8||16i+9||......||16i+15 of 32-bit x*/
+// swapping bits 16i||16i+1||......||16i+7  with bits 16i+8||16i+9||......||16i+15 of 32-bit x
 //#define SWAP8(x)   (x) = ((((x) & 0x00ff00ffUL) << 8) | (((x) & 0xff00ff00UL) >> 8));
 #define SWAP8(x) (x) = __byte_perm(x, x, 0x2301);
-/*swapping bits 32i||32i+1||......||32i+15 with bits 32i+16||32i+17||......||32i+31 of 32-bit x*/
+
+// swapping bits 32i||32i+1||......||32i+15 with bits 32i+16||32i+17||......||32i+31 of 32-bit x
 //#define SWAP16(x)  (x) = ((((x) & 0x0000ffffUL) << 16) | (((x) & 0xffff0000UL) >> 16));
 #define SWAP16(x) (x) = __byte_perm(x, x, 0x1032);
 
-/*The MDS transform*/
+/* The MDS transform */
 #define L(m0,m1,m2,m3,m4,m5,m6,m7) \
       (m4) ^= (m1);                \
       (m5) ^= (m2);                \
@@ -107,7 +108,7 @@ const unsigned char h_E8_bitslice_roundconstant[42][32] = {
       (m2) ^= (m4) ^ (m7);         \
       (m3) ^= (m4);
 
-/*The Sbox*/
+/* The Sbox */
 #define Sbox(m0,m1,m2,m3,cc)       \
       m3  = ~(m3);                 \
       m0 ^= ((~(m2)) & (cc));      \
@@ -125,8 +126,8 @@ __device__ __forceinline__ void Sbox_and_MDS_layer(hashState* state, uint32_t ro
 {
 	uint32_t temp0;
 	uint32_t cc0, cc1;
-	//Sbox and MDS layer
-#pragma unroll 4
+	// Sbox and MDS layer
+	#pragma unroll
 	for (int i = 0; i < 4; i++) {
 		cc0 = ((uint32_t*)c_E8_bitslice_roundconstant[roundnumber])[i];
 		cc1 = ((uint32_t*)c_E8_bitslice_roundconstant[roundnumber])[i + 4];
@@ -140,9 +141,8 @@ __device__ __forceinline__ void RoundFunction0(hashState* state, uint32_t roundn
 {
 	Sbox_and_MDS_layer(state, roundnumber);
 
-#pragma unroll 4
-	for (int j = 1; j < 8; j = j + 2)
-	{
+	#pragma unroll 4
+	for (int j = 1; j < 8; j = j + 2) {
 		uint32_t y;
 		SWAP1(state->x[j][0], y);
 		SWAP1(state->x[j][1], y);
@@ -155,9 +155,8 @@ __device__ __forceinline__ void RoundFunction1(hashState* state, uint32_t roundn
 {
 	Sbox_and_MDS_layer(state, roundnumber);
 
-#pragma unroll 4
-	for (int j = 1; j < 8; j = j + 2)
-	{
+	#pragma unroll 4
+	for (int j = 1; j < 8; j = j + 2) {
 		uint32_t y;
 		SWAP2(state->x[j][0], y);
 		SWAP2(state->x[j][1], y);
@@ -170,9 +169,8 @@ __device__ __forceinline__ void RoundFunction2(hashState* state, uint32_t roundn
 {
 	Sbox_and_MDS_layer(state, roundnumber);
 
-#pragma unroll 4
-	for (int j = 1; j < 8; j = j + 2)
-	{
+	#pragma unroll 4
+	for (int j = 1; j < 8; j = j + 2) {
 		uint32_t y;
 		SWAP4(state->x[j][0], y);
 		SWAP4(state->x[j][1], y);
@@ -185,10 +183,9 @@ __device__ __forceinline__ void RoundFunction3(hashState* state, uint32_t roundn
 {
 	Sbox_and_MDS_layer(state, roundnumber);
 
-#pragma unroll 4
-	for (int j = 1; j < 8; j = j + 2)
-	{
-#pragma unroll 4
+	#pragma unroll 4
+	for (int j = 1; j < 8; j = j + 2) {
+		#pragma unroll
 		for (int i = 0; i < 4; i++) SWAP8(state->x[j][i]);
 	}
 }
@@ -197,10 +194,10 @@ __device__ __forceinline__ void RoundFunction4(hashState* state, uint32_t roundn
 {
 	Sbox_and_MDS_layer(state, roundnumber);
 
-#pragma unroll 4
+	#pragma unroll 4
 	for (int j = 1; j < 8; j = j + 2)
 	{
-#pragma unroll 4
+		#pragma unroll
 		for (int i = 0; i < 4; i++) SWAP16(state->x[j][i]);
 	}
 }
@@ -211,12 +208,13 @@ __device__ __forceinline__ void RoundFunction5(hashState* state, uint32_t roundn
 
 	Sbox_and_MDS_layer(state, roundnumber);
 
-#pragma unroll 4
-	for (int j = 1; j < 8; j = j + 2)
-	{
-#pragma unroll 2
+	#pragma unroll 4
+	for (int j = 1; j < 8; j = j + 2) {
+		#pragma unroll
 		for (int i = 0; i < 4; i = i + 2) {
-			temp0 = state->x[j][i]; state->x[j][i] = state->x[j][i + 1]; state->x[j][i + 1] = temp0;
+			temp0 = state->x[j][i];
+			state->x[j][i] = state->x[j][i + 1];
+			state->x[j][i + 1] = temp0;
 		}
 	}
 }
@@ -227,17 +225,18 @@ __device__ __forceinline__ void RoundFunction6(hashState* state, uint32_t roundn
 
 	Sbox_and_MDS_layer(state, roundnumber);
 
-#pragma unroll 4
-	for (int j = 1; j < 8; j = j + 2)
-	{
-#pragma unroll 2
+	#pragma unroll 4
+	for (int j = 1; j < 8; j = j + 2) {
+		#pragma unroll
 		for (int i = 0; i < 2; i++) {
-			temp0 = state->x[j][i]; state->x[j][i] = state->x[j][i + 2]; state->x[j][i + 2] = temp0;
+			temp0 = state->x[j][i];
+			state->x[j][i] = state->x[j][i + 2];
+			state->x[j][i + 2] = temp0;
 		}
 	}
 }
 
-/*The bijective function E8, in bitslice form */
+/* The bijective function E8, in bitslice form */
 __device__ __forceinline__ void E8(hashState *state)
 {
 	/*perform 6 rounds*/
@@ -254,66 +253,66 @@ __device__ __forceinline__ void E8(hashState *state)
 	}
 }
 
-/*The compression function F8 */
+/* The compression function F8 */
 __device__ __forceinline__ void F8(hashState *state)
 {
-	/*xor the 512-bit message with the fist half of the 1024-bit hash state*/
-#pragma unroll 16
+	/* xor the 512-bit message with the fist half of the 1024-bit hash state */
+	#pragma unroll
 	for (int i = 0; i < 16; i++)
 		state->x[i >> 2][i & 3] ^= ((uint32_t*)state->buffer)[i];
 
-	/*the bijective function E8 */
+	/* the bijective function E8 */
 	E8(state);
 
-	/*xor the 512-bit message with the second half of the 1024-bit hash state*/
-#pragma unroll 16
+	/* xor the 512-bit message with the second half of the 1024-bit hash state */
+	#pragma unroll
 	for (int i = 0; i < 16; i++)
 		state->x[(16 + i) >> 2][(16 + i) & 3] ^= ((uint32_t*)state->buffer)[i];
 }
 
 // Die Hash-Funktion
 __global__ __launch_bounds__(256, 3)
-void drop_jh512_gpu_hash_80a(uint32_t threads, uint32_t startNounce, uint64_t *g_hash, uint64_t *d_roundInfo)
+void drop_jh512_gpu_hash_80a(uint32_t threads, uint32_t startNounce, uint32_t *g_hash, uint64_t *d_roundInfo)
 {
 	uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (thread < threads)
 	{
-		uint32_t *outputHash = (uint32_t*)&g_hash[thread << 3];
-
 		hashState state;
+		uint32_t *outputHash = &g_hash[thread << 3];
 		int i, j;
 
 		// copy init jh state
-#pragma unroll 8
+		#pragma unroll
 		for (j = 0; j<8; j++) {
-#pragma unroll 4
+			#pragma unroll
 			for (i = 0; i<4; i++)
 				state.x[j][i] = c_State[0].x[j][i];
 		}
 
-#pragma unroll 16
-		for (i = 0; i < 16; ++i)
+		#pragma unroll
+		for (i = 0; i < 16; i++)
 			state.buffer[i] = c_State[0].buffer[i];
 
 		F8(&state);
 
-#pragma unroll 16
-		for (i = 0; i < 16; ++i)
+		#pragma unroll
+		for (i = 0; i < 16; i++)
 			state.buffer[i] = c_State[0].buffer[i + 16];
 
 		state.buffer[3] = startNounce + thread;
 
 		F8(&state);
-#pragma unroll 15
+
+		#pragma unroll
 		for (i = 0; i < 15; i++)
 			state.buffer[i] = 0;
 		state.buffer[15] = 0x80020000;
 
 		F8(&state);
 
-		/*truncating the final hash value to generate the message digest*/
-#pragma unroll 16
-		for (i = 0; i < 16; ++i)
+		// truncating the final hash value to generate the message digest
+		#pragma unroll
+		for (i = 0; i < 16; i++)
 			outputHash[i] = state.x[4][i];
 
 		// init round info
@@ -321,14 +320,12 @@ void drop_jh512_gpu_hash_80a(uint32_t threads, uint32_t startNounce, uint64_t *g
 		i = 0;
 		uint64_t roundInfo = 0;
 
-		for (j = startPos; j < 31; j += 9)
-		{
+		for (j = startPos; j < 31; j += 9) {
 			roundInfo <<= 8;
 			roundInfo += j;
 			i++;
 		}
-		for (j = 0; j < startPos; j += 9)
-		{
+		for (j = 0; j < startPos; j += 9) {
 			roundInfo <<= 8;
 			roundInfo += j;
 			i++;
@@ -338,53 +335,53 @@ void drop_jh512_gpu_hash_80a(uint32_t threads, uint32_t startNounce, uint64_t *g
 			roundInfo <<= 8;
 			roundInfo += 0xFF;
 		}
+
 		d_roundInfo[thread] = roundInfo;
 	}
 }
 
 __global__ __launch_bounds__(256, 3)
-void drop_jh512_gpu_hash_80b(uint32_t threads, uint32_t startNounce, uint64_t *g_hash, uint64_t *d_roundInfo)
+void drop_jh512_gpu_hash_80b(uint32_t threads, uint32_t startNounce, uint32_t *g_hash, uint64_t *d_roundInfo)
 {
 	uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (thread < threads)
 	{
-		uint32_t *hash = (uint32_t*)&g_hash[thread << 3];
-
 		hashState state;
+		uint32_t *hash = &g_hash[thread << 3];
 		int i, j;
 
 		// copy init jh state
-#pragma unroll 8
+		#pragma unroll
 		for (j = 0; j<8; j++) {
-#pragma unroll 4
+			#pragma unroll
 			for (i = 0; i<4; i++)
 				state.x[j][i] = c_State[0].x[j][i];
 		}
 
 		state.buffer[0] = c_State[0].buffer[0] | (0xFFFF0000 & hash[0]);
 
-#pragma unroll 15
-		for (i = 1; i < 16; ++i)
+		#pragma unroll 15
+		for (i = 1; i < 16; i++)
 			state.buffer[i] = c_State[0].buffer[i];
 
 		F8(&state);
-#pragma unroll 16
-		for (i = 0; i < 16; ++i)
+		#pragma unroll
+		for (i = 0; i < 16; i++)
 			state.buffer[i] = c_State[0].buffer[i + 16];
 
 		state.buffer[3] = startNounce + thread;
 
 		F8(&state);
-#pragma unroll 15
+		#pragma unroll
 		for (i = 0; i < 15; i++)
 			state.buffer[i] = 0;
 		state.buffer[15] = 0x80020000;
 
 		F8(&state);
 
-		/*truncating the final hash value to generate the message digest*/
-#pragma unroll 16
-		for (i = 0; i < 16; ++i)
+		// truncating the final hash value to generate the message digest
+		#pragma unroll
+		for (i = 0; i < 16; i++)
 			hash[i] = state.x[4][i];
 
 		// init round info
@@ -392,14 +389,12 @@ void drop_jh512_gpu_hash_80b(uint32_t threads, uint32_t startNounce, uint64_t *g
 		i = 0;
 		uint64_t roundInfo = 0;
 
-		for (j = startPos; j < 31; j += 9)
-		{
+		for (j = startPos; j < 31; j += 9) {
 			roundInfo <<= 8;
 			roundInfo += j;
 			i++;
 		}
-		for (j = 0; j < startPos; j += 9)
-		{
+		for (j = 0; j < startPos; j += 9) {
 			roundInfo <<= 8;
 			roundInfo += j;
 			i++;
@@ -409,6 +404,7 @@ void drop_jh512_gpu_hash_80b(uint32_t threads, uint32_t startNounce, uint64_t *g
 			roundInfo <<= 8;
 			roundInfo += 0xFF;
 		}
+
 		d_roundInfo[thread] = roundInfo;
 	}
 }
@@ -417,8 +413,6 @@ void drop_jh512_gpu_hash_80b(uint32_t threads, uint32_t startNounce, uint64_t *g
 __host__
 void drop_jh512_cpu_setBlock80(void *pdata)
 {
-	// Message mit Padding bereitstellen
-	// lediglich die korrekte Nonce ist noch ab Byte 76 einzusetzen.
 	uint32_t PaddedMessage[32];
 	memcpy(PaddedMessage, pdata, 80);
 	memset(PaddedMessage + 20, 0, 48);
@@ -427,61 +421,47 @@ void drop_jh512_cpu_setBlock80(void *pdata)
 	PaddedMessage[0] &= 0x0000FFFF;
 
 	// do 1st half of round 1
-	hashState jh_cpu_state[1];
+	hashState jh_cpu_state;
 	// init jh state
-#pragma unroll 8
 	for (int j = 0; j<8; j++) {
-#pragma unroll 4
 		for (int i = 0; i<4; i++)
-			jh_cpu_state[0].x[j][i] = h_INIT_bitslice[j][i];
+			jh_cpu_state.x[j][i] = h_INIT_bitslice[j][i];
 	}
-#pragma unroll 32
 	for (int j = 0; j < 32; j++) {
-		jh_cpu_state[0].buffer[j] = PaddedMessage[j];
+		jh_cpu_state.buffer[j] = PaddedMessage[j];
 	}
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(c_State, jh_cpu_state, sizeof(hashState), 0, cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(c_State, &jh_cpu_state, sizeof(hashState), 0, cudaMemcpyHostToDevice));
 }
 
-// Setup-Funktionen
-__host__ void drop_jh512_cpu_init(int thr_id, uint32_t threads)
+__host__
+void drop_jh512_cpu_init(int thr_id, uint32_t threads)
 {
+	cudaMemcpyToSymbol(c_E8_bitslice_roundconstant, h_E8_bitslice_roundconstant,
+		sizeof(h_E8_bitslice_roundconstant), 0, cudaMemcpyHostToDevice);
 
-	cudaMemcpyToSymbol(c_E8_bitslice_roundconstant,
-		h_E8_bitslice_roundconstant,
-		sizeof(h_E8_bitslice_roundconstant),
-		0, cudaMemcpyHostToDevice);
-
-	cudaMemcpyToSymbol(c_INIT_bitslice,
-		h_INIT_bitslice,
-		sizeof(h_INIT_bitslice),
-		0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(c_INIT_bitslice, h_INIT_bitslice,
+		sizeof(h_INIT_bitslice), 0, cudaMemcpyHostToDevice);
 }
 
-__host__ void drop_jh512_cpu_hash_80a(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, int order, uint64_t *d_roundInfo)
+__host__
+void drop_jh512_cpu_hash_80a(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, int order, uint64_t *d_roundInfo)
 {
 	const uint32_t threadsperblock = 256;
 
-	// berechne wie viele Thread Blocks wir brauchen
 	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
 	dim3 block(threadsperblock);
 
-	// Größe des dynamischen Shared Memory Bereichs
-	size_t shared_size = 0;
-
-	drop_jh512_gpu_hash_80a << <grid, block, shared_size >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo);
+	drop_jh512_gpu_hash_80a <<<grid, block >>>(threads, startNounce, d_hash, d_roundInfo);
 }
 
-__host__ void drop_jh512_cpu_hash_80b(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, int order, uint64_t *d_roundInfo)
+__host__
+void drop_jh512_cpu_hash_80b(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, int order, uint64_t *d_roundInfo)
 {
 	const uint32_t threadsperblock = 256;
 
-	// berechne wie viele Thread Blocks wir brauchen
 	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
 	dim3 block(threadsperblock);
 
-	// Größe des dynamischen Shared Memory Bereichs
-	size_t shared_size = 0;
-
-	drop_jh512_gpu_hash_80b << <grid, block, shared_size >> >(threads, startNounce, (uint64_t*)d_hash, d_roundInfo);
+	drop_jh512_gpu_hash_80b <<<grid, block >>>(threads, startNounce, d_hash, d_roundInfo);
 }
