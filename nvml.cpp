@@ -891,7 +891,11 @@ unsigned int gpu_power(struct cgpu_info *gpu)
 #ifdef HAVE_PCIDEV
 extern "C" {
 #include <errno.h>
+#ifdef WIN32
+#include "compat/pciutils/lib/pci.h"
+#else
 #include <pci/pci.h>
+#endif
 }
 static int linux_gpu_vendor(uint8_t pci_bus_id, char* vendorname, uint16_t &pid)
 {
