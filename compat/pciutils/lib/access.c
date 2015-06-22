@@ -16,7 +16,8 @@
 void
 pci_scan_bus(struct pci_access *a)
 {
-  a->methods->scan(a);
+  if (a->methods && a->methods->scan)
+    a->methods->scan(a);
 }
 
 struct pci_dev *
@@ -28,7 +29,7 @@ pci_alloc_dev(struct pci_access *a)
   d->access = a;
   d->methods = a->methods;
   d->hdrtype = -1;
-  if (d->methods->init_dev)
+  if (d->methods && d->methods->init_dev)
     d->methods->init_dev(d);
   return d;
 }
