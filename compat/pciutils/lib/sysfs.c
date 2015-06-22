@@ -15,12 +15,9 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <errno.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <sys/types.h>
-
-#ifndef _MSC_VER
-#include <dirent.h>
-#endif
 
 #include "internal.h"
 #include "pread.h"

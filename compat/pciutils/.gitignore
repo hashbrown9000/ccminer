@@ -12,3 +12,7 @@ pci.ids.old
 *.tlog
 *.pdb
 win32/libpci.vcxproj.user
+win32/x64/
+win32/Debug/
+win32/Release/
+

@@ -12,12 +12,12 @@
 #define PCI_PATH_SYS_BUS_PCI ""
 #define PCILIB_VERSION "3.3.1"
 
-// #ifndef _DEBUG
-// #undef PCI_PRINTF /*(x,y)*/
-// #endif
-
 #ifdef _MSC_VER
-//#define PCI_HAVE_STDINT_H
 #define R_OK 4 /* access() read mode */
 #define lseek _lseek
+
+//#ifndef _DEBUG
+//#undef PCI_PRINTF /*(x,y)*/
+//#endif
+
 #endif

@@ -194,7 +194,7 @@ pci_init(struct pci_access *a)
     {
       unsigned int i;
       for (i=0; i<PCI_ACCESS_MAX; i++)
-      if (pci_methods[i])
+	if (pci_methods[i])
 	  {
 	    a->debug("Trying method %d...", i);
 	    if (pci_methods[i]->detect(a))
@@ -207,7 +207,7 @@ pci_init(struct pci_access *a)
 	    a->debug("...No.\n");
 	  }
       if (!a->methods)
-        a->error("Cannot find any working access method.");
+	a->error("Cannot find any working access method.");
     }
   a->debug("Decided to use %s\n", a->methods->name);
   a->methods->init(a);
