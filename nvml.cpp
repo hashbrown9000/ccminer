@@ -929,9 +929,13 @@ static int linux_gpu_vendor(uint8_t pci_bus_id, char* vendorname, uint16_t &pid)
 
 	for(dev = pci->devices; dev; dev = dev->next)
 	{
-		if (dev->bus == pci_bus_id && (dev->vendor_id == 0x10DE || dev->device_class == PCI_CLASS_DISPLAY_VGA))
+		if (dev->bus == pci_bus_id && dev->vendor_id == 0x10DE)
 		{
 			bool identified = false;
+			if (!(dev->known_fields & PCI_FILL_CLASS))
+				pci_fill_info(dev, PCI_FILL_CLASS);
+			if (dev->device_class != PCI_CLASS_DISPLAY_VGA)
+				continue;
 			subvendor = pci_read_word(dev, PCI_SUBSYSTEM_VENDOR_ID);
 			subdevice = pci_read_word(dev, PCI_SUBSYSTEM_ID); // model
 
