@@ -3227,7 +3227,7 @@ int main(int argc, char *argv[])
 	}
 
 #ifdef USE_WRAPNVML
-#ifndef _WIN32
+#if defined(__linux__) || defined(_WIN64)
 	/* nvml is currently not the best choice on Windows (only in x64) */
 	hnvml = nvml_create();
 	if (hnvml) {
