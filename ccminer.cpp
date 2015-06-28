@@ -644,7 +644,7 @@ static bool work_decode(const json_t *val, struct work *work)
 	int adata_sz = ARRAY_SIZE(work->data), atarget_sz = ARRAY_SIZE(work->target);
 	int i;
 
-	if (opt_algo == ALGO_NEOSCRYPT || opt_algo == ALGO_ZR5 || opt_algo == ALGO_DROP) {
+	if (opt_algo == ALGO_DROP || opt_algo == ALGO_NEOSCRYPT || opt_algo == ALGO_ZR5) {
 		data_size = 80; adata_sz = 20;
 	}
 
@@ -1396,6 +1396,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		calc_network_diff(work);
 
 	switch (opt_algo) {
+	case ALGO_DROP:
 	case ALGO_MJOLLNIR:
 	case ALGO_HEAVY:
 	case ALGO_ZR5:
@@ -1433,6 +1434,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		opt_difficulty = 1.;
 
 	switch (opt_algo) {
+		case ALGO_DROP:
 		case ALGO_JACKPOT:
 		case ALGO_NEOSCRYPT:
 		case ALGO_SCRYPT:
@@ -1760,7 +1762,7 @@ static void *miner_thread(void *userdata)
 			case ALGO_X13:
 				minmax = 0x400000;
 				break;
-			case ALGO_DROP:
+			//case ALGO_DROP:
 			case ALGO_LYRA2:
 			case ALGO_NEOSCRYPT:
 			case ALGO_SCRYPT:
@@ -1836,8 +1838,7 @@ static void *miner_thread(void *userdata)
 			break;
 
 		case ALGO_DROP:
-			rc = scanhash_drop(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
+			rc = scanhash_drop(thr_id, &work, max_nonce, &hashes_done);
 			break;
 
 		case ALGO_FUGUE256:

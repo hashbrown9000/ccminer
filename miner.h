@@ -271,9 +271,7 @@ extern int scanhash_luffa(int thr_id, uint32_t *pdata,
 	const uint32_t *ptarget, uint32_t max_nonce,
 	unsigned long *hashes_done);
 
-extern int scanhash_drop(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
+extern int scanhash_drop(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 
 extern int scanhash_fugue256(int thr_id, uint32_t *pdata,
 	const uint32_t *ptarget, uint32_t max_nonce,
@@ -774,6 +772,7 @@ void animehash(void *state, const void *input);
 void blake256hash(void *output, const void *input, int8_t rounds);
 void c11hash(void *output, const void *input);
 void deephash(void *state, const void *input);
+void drophash(void *output, const void *input);
 void luffa_hash(void *state, const void *input);
 void fresh_hash(void *state, const void *input);
 void fugue256_hash(unsigned char* output, const unsigned char* input, int len);

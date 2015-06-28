@@ -237,21 +237,23 @@ extern "C" void drophash_pok(void *output, uint32_t *pdata, bool xnonce)
 
 static bool init[MAX_GPUS] = { 0 };
 
-extern "C" int scanhash_drop(int thr_id, uint32_t *pdata, const uint32_t *ptarget,
-	uint32_t max_nonce, unsigned long *hashes_done)
+extern "C" int scanhash_drop(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done)
 {
+	uint32_t *pdata = work->data;
+	uint32_t *ptarget = work->target;
 #ifdef DROP_OFFF
 	uint32_t _ALIGN(64) tmpdata[20];
 #else
 	const uint32_t oP = pdata[22];
 #endif
+	uint32_t oldp0 = pdata[0];
 	const uint32_t first_nonce = pdata[19];
 
 	uint32_t throughpt = device_intensity(thr_id, __func__, 1U << 19);
 	const uint32_t throughput = min(throughpt, max_nonce - first_nonce);
 
 	if (opt_benchmark)
-		((uint32_t*)ptarget)[7] = 0x0000ff;
+		ptarget[7] = 0x00ff;
 
 	if (!init[thr_id])
 	{
@@ -348,7 +350,6 @@ extern "C" int scanhash_drop(int thr_id, uint32_t *pdata, const uint32_t *ptarge
 		if (foundNonce != UINT32_MAX)
 		{
 			uint32_t vhash64[8];
-			uint32_t oldp0 = pdata[0];
 			uint32_t oldp19 = pdata[19];
 #ifdef DROP_OFFF
 			const uint32_t version = pdata[0] & 0x0000FFFF;
@@ -422,5 +423,7 @@ extern "C" int scanhash_drop(int thr_id, uint32_t *pdata, const uint32_t *ptarge
 	} while (pdata[19] < max_nonce && !work_restart[thr_id].restart);
 
 	*hashes_done = pdata[19] - first_nonce + 1;
+	pdata[19] = oldp0;
+
 	return 0;
 }

@@ -1820,6 +1820,9 @@ void print_hash_tests(void)
 	deephash(&hash[0], &buf[0]);
 	printpfx("deep", hash);
 
+	drophash(&hash[0], &buf[0]);
+	printpfx("drop", hash);
+
 	fresh_hash(&hash[0], &buf[0]);
 	printpfx("fresh", hash);
 
