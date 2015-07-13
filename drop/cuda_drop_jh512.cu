@@ -278,7 +278,7 @@ void drop_jh512_gpu_hash_80a(uint32_t threads, uint32_t startNounce, uint32_t *g
 	if (thread < threads)
 	{
 		hashState state;
-		uint32_t *outputHash = &g_hash[thread << 3];
+		uint32_t *outputHash = &g_hash[thread << 4];
 		int i, j;
 
 		// copy init jh state
@@ -347,7 +347,7 @@ void drop_jh512_gpu_hash_80b(uint32_t threads, uint32_t startNounce, uint32_t *g
 	if (thread < threads)
 	{
 		hashState state;
-		uint32_t *hash = &g_hash[thread << 3];
+		uint32_t *hash = &g_hash[thread << 4];
 		int i, j;
 
 		// copy init jh state
